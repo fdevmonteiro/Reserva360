@@ -46,3 +46,14 @@ Thumbs.db
 .claude/worktrees
 .claude/settings.local.json
 .nx/polygraph
+vite.config.*.timestamp*
+test-output
+
+# Maven
+apps/**/target/
+*.mv.db
+*.trace.db
+
+# Credenciais locais - NUNCA versionar
+apps/**/src/main/resources/application.properties
+apps/**/src/main/resources/application-prod.properties

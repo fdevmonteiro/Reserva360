@@ -1,0 +1,43 @@
+{
+    "name": "reserva-backend",
+    "root": "apps/reserva-backend",
+    "projectType": "application",
+    "tags": ["type:app", "platform:java"],
+    "targets": {
+        "build": {
+            "executor": "nx:run-commands",
+            "options": {
+                "cwd": "apps/reserva-backend",
+                "command": "./mvnw clean package -DskipTests"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*",
+                "{projectRoot}/pom.xml"
+            ],
+            "outputs": [
+                "{projectRoot}/target"
+            ]
+        },
+        "test": {
+            "executor": "nx:run-commands",
+            "options": {
+                "cwd": "apps/reserva-backend",
+                "command": "./mvnw test"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*",
+                "{projectRoot}/pom.xml"
+            ],
+            "outputs": [
+                "{projectRoot}/target/surefire-reports"
+            ]
+        },
+        "serve": {
+            "executor": "nx:run-commands",
+            "options": {
+                "cwd": "apps/reserva-backend",
+                "command": "./mvnw spring-boot:run"
+            }
+        }
+    }
+}
