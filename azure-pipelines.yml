@@ -1,0 +1,19 @@
+trigger:
+- main
+
+- stage: TesteServidor
+  displayName: 'Teste de Servidor'
+  jobs: 
+  - deployment: DeployDevelopment
+    displayName: "Teste de deploy"
+    enviroment: 
+     name: Development
+     resourceType: VirtualMachine
+     strategy: 
+      runOnce:
+        deploy:
+          steps:
+          - task: CmdLine@2
+            displayName:  'Criacao de arquivo no servidor'
+            inputs:
+              script: echo "Hello World!" | tee teste.txt
