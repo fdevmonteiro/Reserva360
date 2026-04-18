@@ -1,15 +1,16 @@
 trigger:
 - main
 
+stages:
 - stage: TesteServidor
   displayName: 'Teste de Servidor'
   jobs: 
   - deployment: DeployDevelopment
     displayName: "Teste de deploy"
-    enviroment: 
+    environment: 
      name: Development
      resourceType: VirtualMachine
-     strategy: 
+    strategy: 
       runOnce:
         deploy:
           steps:
