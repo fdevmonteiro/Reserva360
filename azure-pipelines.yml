@@ -17,4 +17,4 @@ stages:
           - task: CmdLine@2
             displayName:  'Criacao de arquivo no servidor'
             inputs:
-              script: echo "Hello World!" | tee /home/okauamonteiro/teste.txt
+              script: echo "Hello World!" > /home/okauamonteiro/teste.txt
