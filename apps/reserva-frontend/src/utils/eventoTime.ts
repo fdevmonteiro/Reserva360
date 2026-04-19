@@ -1,4 +1,16 @@
 // src/utils/eventoTime.ts
+type EventoLike = {
+  startTime?: string | null;
+  endTime?: string | null;
+  inicio?: string | null;
+  fim?: string | null;
+  dataInicio?: string | null;
+  dataFim?: string | null;
+  data?: string | null;
+  date?: string | null;
+  end?: string | null;
+};
+
 export function parseEventoDate(raw: unknown): Date | null {
   if (raw == null) return null;
 
@@ -22,23 +34,23 @@ export function parseEventoDate(raw: unknown): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export function getEventoStart(e: any): Date | null {
+export function getEventoStart(e: EventoLike): Date | null {
   const raw = e?.startTime || e?.inicio || e?.dataInicio || e?.data || e?.date || null;
   return parseEventoDate(raw);
 }
 
-export function getEventoEnd(e: any): Date | null {
+export function getEventoEnd(e: EventoLike): Date | null {
   const raw = e?.endTime || e?.fim || e?.dataFim || e?.end || null;
   return parseEventoDate(raw);
 }
 
 export const START_WINDOW_MINUTES = 45;
 
-export function canStartNow(e: any): boolean {
+export function canStartNow(e: EventoLike): boolean {
   return canStartNowAt(e, new Date());
 }
 
-export function canStartNowAt(e: any, now: Date): boolean {
+export function canStartNowAt(e: EventoLike, now: Date): boolean {
   const start = getEventoStart(e);
   if (!start) return false;
 
@@ -48,7 +60,7 @@ export function canStartNowAt(e: any, now: Date): boolean {
   return now.getTime() >= start.getTime() - START_WINDOW_MINUTES * 60_000;
 }
 
-export function startCountdownText(e: any, now = new Date()): string {
+export function startCountdownText(e: EventoLike, now = new Date()): string {
   const start = getEventoStart(e);
   const end = getEventoEnd(e);
   if (!start) return "Sem data";

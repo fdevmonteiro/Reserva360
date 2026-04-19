@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -78,7 +78,7 @@ const WEEK_DAYS: { label: string; value: number }[] = [
 export default function NovoEventoForm({ isOpen, onClose, onSubmit, isLoading, eventoToEdit }: NovoEventoFormProps) {
   const isEditMode = Boolean(eventoToEdit);
 
-  const getInitialState = (): EventoFormData => {
+  const getInitialState = useCallback((): EventoFormData => {
     if (isEditMode && eventoToEdit) {
       return {
         title: eventoToEdit.title,
@@ -109,9 +109,9 @@ export default function NovoEventoForm({ isOpen, onClose, onSubmit, isLoading, e
       untilDate: undefined,
       recurrence: null,
     };
-  };
+  }, [eventoToEdit, isEditMode]);
 
-  const [formData, setFormData] = useState<EventoFormData>(getInitialState());
+  const [formData, setFormData] = useState<EventoFormData>(getInitialState);
   const [recWeekDays, setRecWeekDays] = useState<number[]>([]); // controle local dos botões de dias
   const [endType, setEndType] = useState<RecurrenceEndType>("UNTIL_DATE");
   const [interval, setInterval] = useState<number>(1);
@@ -123,7 +123,7 @@ export default function NovoEventoForm({ isOpen, onClose, onSubmit, isLoading, e
     setEndType("UNTIL_DATE");
     setInterval(1);
     setMaxOccurrences("");
-  }, [eventoToEdit, isOpen]);
+  }, [eventoToEdit, isOpen, getInitialState]);
 
   // Helpers de mudança
   const handleChange: React.ChangeEventHandler<HTMLInputElement | HTMLTextAreaElement> = (e) => {
