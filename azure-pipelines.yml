@@ -36,15 +36,10 @@ stages:
       - job: Frontend_Validacao
         displayName: "Frontend – Lint & Typecheck"
         pool:
-          vmImage: "ubuntu-latest"
+          name: self-hosted-local
         steps:
           - checkout: self
             fetchDepth: 0
-
-          - task: NodeTool@0
-            displayName: "Setup Node $(NODE_VERSION)"
-            inputs:
-              versionSpec: "$(NODE_VERSION)"
 
           - script: npm ci
             displayName: "Instalar dependências (root)"
@@ -68,22 +63,10 @@ stages:
       - job: Backend_Validacao
         displayName: "Backend – Build de Validação"
         pool:
-          vmImage: "ubuntu-latest"
+          name: self-hosted-local
         steps:
           - checkout: self
             fetchDepth: 0
-
-          - task: JavaToolInstaller@0
-            displayName: "Setup Java $(JAVA_VERSION)"
-            inputs:
-              versionSpec: "$(JAVA_VERSION)"
-              jdkArchitectureOption: "x64"
-              jdkSourceOption: "PreInstalled"
-
-          - task: NodeTool@0
-            displayName: "Setup Node $(NODE_VERSION)"
-            inputs:
-              versionSpec: "$(NODE_VERSION)"
 
           - script: npm ci
             displayName: "Instalar dependências (root)"
@@ -114,14 +97,9 @@ stages:
       - job: Build_Frontend_HML
         displayName: "Build Frontend (modo hml)"
         pool:
-          vmImage: "ubuntu-latest"
+          name: self-hosted-local
         steps:
           - checkout: self
-
-          - task: NodeTool@0
-            displayName: "Setup Node $(NODE_VERSION)"
-            inputs:
-              versionSpec: "$(NODE_VERSION)"
 
           - script: npm ci
             displayName: "Instalar dependências (root)"
@@ -145,21 +123,9 @@ stages:
       - job: Build_Backend
         displayName: "Build Backend (JAR)"
         pool:
-          vmImage: "ubuntu-latest"
+          name: self-hosted-local
         steps:
           - checkout: self
-
-          - task: JavaToolInstaller@0
-            displayName: "Setup Java $(JAVA_VERSION)"
-            inputs:
-              versionSpec: "$(JAVA_VERSION)"
-              jdkArchitectureOption: "x64"
-              jdkSourceOption: "PreInstalled"
-
-          - task: NodeTool@0
-            displayName: "Setup Node $(NODE_VERSION)"
-            inputs:
-              versionSpec: "$(NODE_VERSION)"
 
           - script: npm ci
             displayName: "Instalar dependências (root)"
@@ -248,14 +214,9 @@ stages:
       - job: Build_Frontend_PROD
         displayName: "Build Frontend (modo production)"
         pool:
-          vmImage: "ubuntu-latest"
+          name: self-hosted-local
         steps:
           - checkout: self
-
-          - task: NodeTool@0
-            displayName: "Setup Node $(NODE_VERSION)"
-            inputs:
-              versionSpec: "$(NODE_VERSION)"
 
           - script: npm ci
             displayName: "Instalar dependências (root)"
