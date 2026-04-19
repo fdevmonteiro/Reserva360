@@ -41,11 +41,11 @@ stages:
           - checkout: self
             fetchDepth: 0
 
-          - script: npm ci
+          - script: npm install
             displayName: "Instalar dependências (root)"
             workingDirectory: $(Build.SourcesDirectory)
 
-          - script: cd apps/reserva-frontend && npm ci
+          - script: cd apps/reserva-frontend && npm install
             displayName: "Instalar dependências (frontend)"
             workingDirectory: $(Build.SourcesDirectory)
 
@@ -68,7 +68,7 @@ stages:
           - checkout: self
             fetchDepth: 0
 
-          - script: npm ci
+          - script: npm install
             displayName: "Instalar dependências (root)"
             workingDirectory: $(Build.SourcesDirectory)
 
@@ -101,11 +101,11 @@ stages:
         steps:
           - checkout: self
 
-          - script: npm ci
+          - script: npm install
             displayName: "Instalar dependências (root)"
             workingDirectory: $(Build.SourcesDirectory)
 
-          - script: cd apps/reserva-frontend && npm ci
+          - script: cd apps/reserva-frontend && npm install
             displayName: "Instalar dependências (frontend)"
             workingDirectory: $(Build.SourcesDirectory)
 
@@ -127,7 +127,7 @@ stages:
         steps:
           - checkout: self
 
-          - script: npm ci
+          - script: npm install
             displayName: "Instalar dependências (root)"
             workingDirectory: $(Build.SourcesDirectory)
 
@@ -218,11 +218,11 @@ stages:
         steps:
           - checkout: self
 
-          - script: npm ci
+          - script: npm install
             displayName: "Instalar dependências (root)"
             workingDirectory: $(Build.SourcesDirectory)
 
-          - script: cd apps/reserva-frontend && npm ci
+          - script: cd apps/reserva-frontend && npm install
             displayName: "Instalar dependências (frontend)"
             workingDirectory: $(Build.SourcesDirectory)
 
