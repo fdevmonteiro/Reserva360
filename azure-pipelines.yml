@@ -1,0 +1,329 @@
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+      - "*.md"
+      - "docs/**"
+      - ".github/**"
+
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+      - "*.md"
+      - "docs/**"
+
+variables:
+  NODE_VERSION: "20"
+  JAVA_VERSION: "21"
+  NX_BRANCH: $(Build.SourceBranchName)
+  NX_HEAD: $(Build.SourceVersion)
+  FRONTEND_HML_DIR: "/var/www/reserva360/hml"
+  FRONTEND_PROD_DIR: "/var/www/reserva360/prod"
+  BACKEND_DIR: "/opt/reserva360/backend"
+
+# ─────────────────────────────────────────────────────────────
+# STAGE 1 – Validação (CI)
+# ─────────────────────────────────────────────────────────────
+stages:
+  - stage: Validacao
+    displayName: "Validação (CI)"
+    jobs:
+      - job: Frontend_Validacao
+        displayName: "Frontend – Lint & Typecheck"
+        pool:
+          vmImage: "ubuntu-latest"
+        steps:
+          - checkout: self
+            fetchDepth: 0
+
+          - task: NodeTool@0
+            displayName: "Setup Node $(NODE_VERSION)"
+            inputs:
+              versionSpec: "$(NODE_VERSION)"
+
+          - script: npm ci
+            displayName: "Instalar dependências (root)"
+            workingDirectory: $(Build.SourcesDirectory)
+
+          - script: cd apps/reserva-frontend && npm ci
+            displayName: "Instalar dependências (frontend)"
+            workingDirectory: $(Build.SourcesDirectory)
+
+          - script: |
+              if [ "$(Build.Reason)" = "PullRequest" ]; then
+                NX_BASE="origin/$(System.PullRequest.TargetBranch)"
+                echo "Rodando nx affected desde $NX_BASE"
+                npx nx affected --target=lint --base=$NX_BASE --head=HEAD
+              else
+                npx nx run reserva-frontend:lint
+              fi
+            displayName: "Lint (affected em PRs)"
+            workingDirectory: $(Build.SourcesDirectory)
+
+      - job: Backend_Validacao
+        displayName: "Backend – Build de Validação"
+        pool:
+          vmImage: "ubuntu-latest"
+        steps:
+          - checkout: self
+            fetchDepth: 0
+
+          - task: JavaToolInstaller@0
+            displayName: "Setup Java $(JAVA_VERSION)"
+            inputs:
+              versionSpec: "$(JAVA_VERSION)"
+              jdkArchitectureOption: "x64"
+              jdkSourceOption: "PreInstalled"
+
+          - task: NodeTool@0
+            displayName: "Setup Node $(NODE_VERSION)"
+            inputs:
+              versionSpec: "$(NODE_VERSION)"
+
+          - script: npm ci
+            displayName: "Instalar dependências (root)"
+            workingDirectory: $(Build.SourcesDirectory)
+
+          - script: |
+              chmod +x apps/reserva-backend/mvnw
+              npx nx run reserva-backend:test
+            displayName: "Testes unitários (Maven)"
+            workingDirectory: $(Build.SourcesDirectory)
+
+          - task: PublishTestResults@2
+            displayName: "Publicar resultados de testes"
+            condition: always()
+            inputs:
+              testResultsFormat: "JUnit"
+              testResultsFiles: "apps/reserva-backend/target/surefire-reports/*.xml"
+              failTaskOnFailedTests: true
+
+  # ─────────────────────────────────────────────────────────────
+  # STAGE 2 – Build HML
+  # ─────────────────────────────────────────────────────────────
+  - stage: Build_HML
+    displayName: "Build – HML"
+    dependsOn: Validacao
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - job: Build_Frontend_HML
+        displayName: "Build Frontend (modo hml)"
+        pool:
+          vmImage: "ubuntu-latest"
+        steps:
+          - checkout: self
+
+          - task: NodeTool@0
+            displayName: "Setup Node $(NODE_VERSION)"
+            inputs:
+              versionSpec: "$(NODE_VERSION)"
+
+          - script: npm ci
+            displayName: "Instalar dependências (root)"
+            workingDirectory: $(Build.SourcesDirectory)
+
+          - script: cd apps/reserva-frontend && npm ci
+            displayName: "Instalar dependências (frontend)"
+            workingDirectory: $(Build.SourcesDirectory)
+
+          - script: npx nx run reserva-frontend:build:hml
+            displayName: "Build Angular (hml)"
+            workingDirectory: $(Build.SourcesDirectory)
+
+          - task: PublishPipelineArtifact@1
+            displayName: "Publicar artefato frontend-hml"
+            inputs:
+              targetPath: "$(Build.SourcesDirectory)/apps/reserva-frontend/dist"
+              artifact: "frontend-hml"
+              publishLocation: "pipeline"
+
+      - job: Build_Backend
+        displayName: "Build Backend (JAR)"
+        pool:
+          vmImage: "ubuntu-latest"
+        steps:
+          - checkout: self
+
+          - task: JavaToolInstaller@0
+            displayName: "Setup Java $(JAVA_VERSION)"
+            inputs:
+              versionSpec: "$(JAVA_VERSION)"
+              jdkArchitectureOption: "x64"
+              jdkSourceOption: "PreInstalled"
+
+          - task: NodeTool@0
+            displayName: "Setup Node $(NODE_VERSION)"
+            inputs:
+              versionSpec: "$(NODE_VERSION)"
+
+          - script: npm ci
+            displayName: "Instalar dependências (root)"
+            workingDirectory: $(Build.SourcesDirectory)
+
+          - script: |
+              chmod +x apps/reserva-backend/mvnw
+              npx nx run reserva-backend:build
+            displayName: "Build Maven (package)"
+            workingDirectory: $(Build.SourcesDirectory)
+
+          - task: CopyFiles@2
+            displayName: "Copiar JAR para staging"
+            inputs:
+              SourceFolder: "$(Build.SourcesDirectory)/apps/reserva-backend/target"
+              Contents: "*.jar"
+              TargetFolder: "$(Build.ArtifactStagingDirectory)/backend"
+
+          - task: PublishPipelineArtifact@1
+            displayName: "Publicar artefato backend"
+            inputs:
+              targetPath: "$(Build.ArtifactStagingDirectory)/backend"
+              artifact: "backend-jar"
+              publishLocation: "pipeline"
+
+  # ─────────────────────────────────────────────────────────────
+  # STAGE 3 – Deploy HML
+  # Requer aprovação manual via environment 'hml' no Azure DevOps
+  # ─────────────────────────────────────────────────────────────
+  - stage: Deploy_HML
+    displayName: "Deploy – HML"
+    dependsOn: Build_HML
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: Deploy_Frontend_HML
+        displayName: "Deploy Frontend HML"
+        environment: "hml"
+        pool:
+          name: self-hosted-local
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: frontend-hml
+                  displayName: "Baixar artefato frontend-hml"
+
+                - script: |
+                    sudo mkdir -p $(FRONTEND_HML_DIR)
+                    sudo rm -rf $(FRONTEND_HML_DIR)/*
+                    sudo cp -r $(Pipeline.Workspace)/frontend-hml/. $(FRONTEND_HML_DIR)/
+                    sudo chown -R www-data:www-data $(FRONTEND_HML_DIR)
+                    echo "Frontend HML deployado em $(FRONTEND_HML_DIR)"
+                  displayName: "Copiar arquivos para Nginx (hml)"
+
+      - deployment: Deploy_Backend_HML
+        displayName: "Deploy Backend HML"
+        environment: "hml"
+        pool:
+          name: self-hosted-local
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: backend-jar
+                  displayName: "Baixar artefato backend"
+
+                - script: |
+                    sudo mkdir -p $(BACKEND_DIR)
+                    sudo cp $(Pipeline.Workspace)/backend-jar/*.jar $(BACKEND_DIR)/reserva-backend.jar
+                    sudo systemctl restart reserva-backend
+                    echo "Aguardando backend iniciar..."
+                    sleep 10
+                    sudo systemctl status reserva-backend --no-pager
+                  displayName: "Deploy JAR e reiniciar serviço"
+
+  # ─────────────────────────────────────────────────────────────
+  # STAGE 4 – Build PROD
+  # ─────────────────────────────────────────────────────────────
+  - stage: Build_PROD
+    displayName: "Build – Produção"
+    dependsOn: Deploy_HML
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - job: Build_Frontend_PROD
+        displayName: "Build Frontend (modo production)"
+        pool:
+          vmImage: "ubuntu-latest"
+        steps:
+          - checkout: self
+
+          - task: NodeTool@0
+            displayName: "Setup Node $(NODE_VERSION)"
+            inputs:
+              versionSpec: "$(NODE_VERSION)"
+
+          - script: npm ci
+            displayName: "Instalar dependências (root)"
+            workingDirectory: $(Build.SourcesDirectory)
+
+          - script: cd apps/reserva-frontend && npm ci
+            displayName: "Instalar dependências (frontend)"
+            workingDirectory: $(Build.SourcesDirectory)
+
+          - script: npx nx run reserva-frontend:build:production
+            displayName: "Build Angular (production)"
+            workingDirectory: $(Build.SourcesDirectory)
+
+          - task: PublishPipelineArtifact@1
+            displayName: "Publicar artefato frontend-prod"
+            inputs:
+              targetPath: "$(Build.SourcesDirectory)/apps/reserva-frontend/dist"
+              artifact: "frontend-prod"
+              publishLocation: "pipeline"
+
+  # ─────────────────────────────────────────────────────────────
+  # STAGE 5 – Deploy PROD
+  # Requer aprovação manual via environment 'production' no Azure DevOps
+  # ─────────────────────────────────────────────────────────────
+  - stage: Deploy_PROD
+    displayName: "Deploy – Produção"
+    dependsOn: Build_PROD
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: Deploy_Frontend_PROD
+        displayName: "Deploy Frontend Produção"
+        environment: "production"
+        pool:
+          name: self-hosted-local
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: frontend-prod
+                  displayName: "Baixar artefato frontend-prod"
+
+                - script: |
+                    sudo mkdir -p $(FRONTEND_PROD_DIR)
+                    sudo rm -rf $(FRONTEND_PROD_DIR)/*
+                    sudo cp -r $(Pipeline.Workspace)/frontend-prod/. $(FRONTEND_PROD_DIR)/
+                    sudo chown -R www-data:www-data $(FRONTEND_PROD_DIR)
+                    echo "Frontend PROD deployado em $(FRONTEND_PROD_DIR)"
+                  displayName: "Copiar arquivos para Nginx (prod)"
+
+      - deployment: Deploy_Backend_PROD
+        displayName: "Deploy Backend Produção"
+        environment: "production"
+        pool:
+          name: self-hosted-local
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: backend-jar
+                  displayName: "Baixar artefato backend"
+
+                - script: |
+                    sudo mkdir -p $(BACKEND_DIR)
+                    sudo cp $(Pipeline.Workspace)/backend-jar/*.jar $(BACKEND_DIR)/reserva-backend.jar
+                    sudo systemctl restart reserva-backend
+                    echo "Aguardando backend iniciar..."
+                    sleep 10
+                    sudo systemctl status reserva-backend --no-pager
+                  displayName: "Deploy JAR e reiniciar serviço"

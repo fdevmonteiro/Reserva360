@@ -1,0 +1,64 @@
+{
+  "name": "reserva-frontend",
+  "root": "apps/reserva-frontend",
+  "projectType": "application",
+  "tags": ["type:app", "platform:web", "scope:frontend"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/reserva-frontend",
+        "command": "vite build"
+      },
+      "configurations": {
+        "hml": {
+          "command": "vite build --mode hml"
+        },
+        "production": {
+          "command": "vite build --mode production"
+        }
+      },
+      "inputs": [
+        "{projectRoot}/src/**/*",
+        "{projectRoot}/index.html",
+        "{projectRoot}/vite.config.ts",
+        "{projectRoot}/package.json",
+        "{projectRoot}/tsconfig.json",
+        "{projectRoot}/tailwind.config.ts",
+        "{projectRoot}/postcss.config.js"
+      ],
+      "outputs": ["{projectRoot}/dist"]
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/reserva-frontend",
+        "command": "vite"
+      },
+      "configurations": {
+        "hml": {
+          "command": "vite --mode hml --port 8081 --strictPort"
+        }
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/reserva-frontend",
+        "command": "eslint ."
+      },
+      "inputs": [
+        "{projectRoot}/src/**/*.{ts,tsx}",
+        "{projectRoot}/eslint.config.js"
+      ]
+    },
+    "preview": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/reserva-frontend",
+        "command": "vite preview"
+      },
+      "dependsOn": ["build"]
+    }
+  }
+}
