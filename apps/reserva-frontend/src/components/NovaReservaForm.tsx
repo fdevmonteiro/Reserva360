@@ -20,20 +20,19 @@ interface NovaReservaFormProps {
   reservaToEdit: Reserva | null;
 }
 
+const initialState = {
+  title: '',
+  description: '',
+  startTime: '',
+  endTime: '',
+  organizerEmail: '',
+  salaId: '',
+  needsSlideClicker: false,
+  createZoomMeeting: false,
+};
+
 const NovaReservaForm = ({ isOpen, onClose, onSubmit, isLoading, reservaToEdit }: NovaReservaFormProps) => {
   const isEditMode = Boolean(reservaToEdit);
-  
-  // CORREÇÃO: Adicionado 'needsSlideClicker' ao estado inicial
-  const initialState = {
-    title: '',
-    description: '',
-    startTime: '',
-    endTime: '',
-    organizerEmail: '',
-    salaId: '',
-    needsSlideClicker: false,
-    createZoomMeeting: false,
-  };
 
   const [formData, setFormData] = useState(initialState);
   const [availableRooms, setAvailableRooms] = useState<Sala[]>([]);
@@ -63,7 +62,7 @@ const NovaReservaForm = ({ isOpen, onClose, onSubmit, isLoading, reservaToEdit }
     } else {
       setFormData(initialState);
     }
-  }, [reservaToEdit, isOpen]);
+  }, [reservaToEdit, isOpen, isEditMode]);
 
   useEffect(() => {
     const fetchRooms = async () => {
