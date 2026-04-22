@@ -78,8 +78,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { parseEventoDate } from "@/utils/eventoTime";
 
 // Util: extrai Date de diferentes formatos/campos
-function getEventoDate(e: any): Date | null {
-  const raw = e?.startTime || e?.inicio || e?.dataInicio || e?.data || e?.date || null;
+function getEventoDate(e: Evento): Date | null {
+  const raw = e?.startTime || null;
   return parseEventoDate(raw);
 }
 
@@ -141,7 +141,7 @@ function StatusBadge({ status }: { status?: string }) {
     PENDING: { variant: "secondary", text: "Pendente" },
     CANCELLED: { variant: "destructive", text: "Cancelado" },
   };
-  const cfg = map[s] || { variant: "outline", text: status } as any;
+  const cfg = map[s] ?? { variant: "outline" as const, text: status };
   return <Badge variant={cfg.variant}>{cfg.text}</Badge>;
 }
 
@@ -437,12 +437,11 @@ useEffect(() => {
     return s === statusFilter;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function sortEventos(list: any[]) {
+  function sortEventos(list: Evento[]) {
     return [...list].sort((a, b) => {
       if (sortBy === "titleAsc") {
-        const ta = (a?.titulo || a?.title || a?.nome || "").toString().toLowerCase();
-        const tb = (b?.titulo || b?.title || b?.nome || "").toString().toLowerCase();
+        const ta = (a.title || "").toLowerCase();
+        const tb = (b.title || "").toLowerCase();
         return ta.localeCompare(tb);
       }
       const da = getEventoDate(a)?.getTime() || 0;
@@ -454,11 +453,13 @@ useEffect(() => {
   const filteredUpcoming = useMemo(() => {
     const base = ensureArray<Evento>(upcomingEventos).filter((e) => matchesQuery(e) && matchesStatus(e) && inPeriod(getEventoDate(e)));
     return sortEventos(base);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [upcomingEventos, query, statusFilter, period, sortBy]);
 
   const filteredPast = useMemo(() => {
     const base = ensureArray<Evento>(pastEventos).filter((e) => matchesQuery(e) && matchesStatus(e));
     return sortEventos(base);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pastEventos, query, statusFilter, sortBy]);
 
   const groupedUpcoming = useMemo(() => {
@@ -470,7 +471,7 @@ useEffect(() => {
         return da - db;
       }),
     }));
-  }, [filteredUpcoming, sortBy]);
+  }, [filteredUpcoming]);
 
   const groupedPast = useMemo(() => {
     return buildEventoGroups(filteredPast).map((group) => ({
@@ -481,7 +482,7 @@ useEffect(() => {
         return da - db;
       }),
     }));
-  }, [filteredPast, sortBy]);
+  }, [filteredPast]);
 
   function toggleRecurringGroup(key: string) {
     setExpandedRecurringGroups((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -500,7 +501,7 @@ useEffect(() => {
               })()}
             </span>
           </div>
-          <StatusBadge status={(evento as any)?.status} />
+          <StatusBadge status={evento.status} />
         </div>
         <EventoItem
           evento={evento}
