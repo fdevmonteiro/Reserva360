@@ -1,105 +1,153 @@
-# New Nx Repository
+# Reserva360
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+Sistema de reserva de salas corporativas com autenticação via Active Directory, integração com Zoom e Microsoft Graph.
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
+---
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/nx-api/js?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
-## Try the full Nx platform
-🚀 If you haven't connected to Nx Cloud yet, [complete your setup here](https://cloud.nx.app/setup/connect-workspace/guide). Get faster builds with remote caching, distributed task execution, and self-healing CI. [See how your workspace can benefit](#nx-cloud).
-## Generate a library
-
-```sh
-npx nx g @nx/js:lib packages/pkg1 --publishable --importPath=@my-org/pkg1
-```
-
-## Run tasks
-
-To build the library use:
-
-```sh
-npx nx build pkg1
-```
-
-To run any task with Nx use:
-
-```sh
-npx nx <target> <project-name>
-```
-
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
-
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Versioning and releasing
-
-To version and release the library use
+## Estrutura do repositório
 
 ```
-npx nx release
+Reserva360/
+├── apps/
+│   ├── reserva-frontend/   # React + Vite + TypeScript
+│   └── reserva-backend/    # Spring Boot 3 + Java 21
 ```
 
-Pass `--dry-run` to see what would happen without actually releasing the library.
+---
 
-[Learn more about Nx release &raquo;](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+## Pré-requisitos
 
-## Keep TypeScript project references up to date
+| Ferramenta | Versão mínima |
+|---|---|
+| Node.js | 20.x |
+| npm | 10.x |
+| Java | 21 |
+| Maven Wrapper | incluso (`./mvnw`) |
 
-Nx automatically updates TypeScript [project references](https://www.typescriptlang.org/docs/handbook/project-references.html) in `tsconfig.json` files to ensure they remain accurate based on your project dependencies (`import` or `require` statements). This sync is automatically done when running tasks such as `build` or `typecheck`, which require updated references to function correctly.
+---
 
-To manually trigger the process to sync the project graph dependencies information to the TypeScript project references, run the following command:
+## Configuração do backend
 
-```sh
-npx nx sync
+O backend usa variáveis de ambiente para todos os valores sensíveis. O arquivo `application.properties` **não contém credenciais** e é seguro para o repositório.
+
+### 1. Copie o arquivo de exemplo
+
+```bash
+cp apps/reserva-backend/src/main/resources/application.properties.example \
+   apps/reserva-backend/src/main/resources/application.properties
 ```
 
-You can enforce that the TypeScript project references are always in the correct state when running in CI by adding a step to your CI job configuration that runs the following command:
+> `application.properties` está no `.gitignore` — nunca será commitado.
 
-```sh
-npx nx sync:check
+### 2. Preencha as variáveis de ambiente
+
+Defina as variáveis abaixo no seu ambiente antes de rodar a aplicação (shell, `.env`, pipeline, etc.):
+
+#### Banco de dados (MySQL)
+
+| Variável | Descrição | Exemplo |
+|---|---|---|
+| `DB_URL` | JDBC URL do MySQL | `jdbc:mysql://HOST:3306/reserva_sala?useSSL=true&serverTimezone=UTC&allowPublicKeyRetrieval=true` |
+| `DB_USERNAME` | Usuário do banco | `user_reserva_sala` |
+| `DB_PASSWORD` | Senha do banco | — |
+
+#### E-mail (SMTP Office 365)
+
+| Variável | Descrição |
+|---|---|
+| `MAIL_USERNAME` | E-mail remetente |
+| `MAIL_PASSWORD` | Senha do e-mail |
+
+#### JWT
+
+| Variável | Descrição |
+|---|---|
+| `JWT_SECRET` | Chave secreta (mínimo 256 bits) |
+
+#### LDAP / Active Directory
+
+| Variável | Descrição | Exemplo |
+|---|---|---|
+| `LDAP_URL` | URL do controlador de domínio | `ldap://DC-01.dominio.com.br:389` |
+| `LDAP_BASE` | Base DN | `DC=dominio,DC=com,DC=br` |
+| `LDAP_USERNAME` | DN da service account | `CN=svc,OU=ServiceUsers,...` |
+| `LDAP_PASSWORD` | Senha da service account | — |
+
+#### Zoom
+
+| Variável | Descrição |
+|---|---|
+| `ZOOM_ACCOUNT_ID` | Account ID da app Zoom |
+| `ZOOM_CLIENT_ID` | Client ID da app Zoom |
+| `ZOOM_CLIENT_SECRET` | Client Secret da app Zoom |
+| `ZOOM_WEBHOOK_TOKEN` | Token de verificação do webhook (pode ser vazio) |
+
+#### Microsoft Graph
+
+| Variável | Descrição |
+|---|---|
+| `MS_TENANT_ID` | Tenant ID do Azure AD |
+| `MS_CLIENT_ID` | Client ID do app registration |
+| `MS_CLIENT_SECRET` | Client Secret do app registration |
+
+#### URLs da aplicação
+
+| Variável | Descrição | Exemplo |
+|---|---|---|
+| `APP_BASE_URL` | URL base do backend | `http://localhost:8080` |
+| `APP_FRONTEND_URL` | URL do frontend | `http://localhost:5173` |
+| `APP_CORS_ORIGINS` | Origins permitidas (separadas por vírgula) | `http://localhost:3000,http://localhost:5173` |
+
+### 3. Rodando o backend
+
+```bash
+# Build
+npm run nx -- build reserva-backend
+
+# Rodar em desenvolvimento
+npm run nx -- serve reserva-backend
+
+# Ou diretamente com Maven
+cd apps/reserva-backend
+./mvnw spring-boot:run
 ```
 
-[Learn more about nx sync](https://nx.dev/reference/nx-commands#sync)
+A aplicação sobe na porta **8080** por padrão. O console do H2 (se configurado) fica em `/h2-console`.
 
-## Nx Cloud
+---
 
-Nx Cloud ensures a [fast and scalable CI](https://nx.dev/ci/intro/why-nx-cloud?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) pipeline. It includes features such as:
+## Configuração do frontend
 
-- [Remote caching](https://nx.dev/ci/features/remote-cache?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task distribution across multiple machines](https://nx.dev/ci/features/distribute-task-execution?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Automated e2e test splitting](https://nx.dev/ci/features/split-e2e-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task flakiness detection and rerunning](https://nx.dev/ci/features/flaky-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+```bash
+# Instalar dependências
+npm install
 
-### Set up CI (non-Github Actions CI)
+# Rodar em desenvolvimento (porta 5173)
+npm run nx -- serve reserva-frontend
 
-**Note:** This is only required if your CI provider is not GitHub Actions.
-
-Use the following command to configure a CI workflow for your workspace:
-
-```sh
-npx nx g ci-workflow
+# Build de produção
+npm run nx -- build reserva-frontend
 ```
 
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+---
 
-## Install Nx Console
+## Rodando tudo junto
 
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
+```bash
+# Backend e frontend em paralelo
+npm run nx -- run-many -t serve -p reserva-backend,reserva-frontend
+```
 
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+---
 
-## Useful links
+## Pipeline (Azure DevOps)
 
-Learn more:
+As variáveis sensíveis devem ser cadastradas como **Secret Variables** no grupo de variáveis do pipeline e injetadas como variáveis de ambiente na etapa de execução do backend. Consulte a equipe de infraestrutura para obter os valores de produção/homologação.
 
-- [Learn more about this workspace setup](https://nx.dev/nx-api/js?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+---
 
-And join the Nx community:
+## Segurança
 
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- `application.properties` está no `.gitignore` — nunca commite com credenciais reais
+- Use o arquivo `application.properties.example` como referência para novos ambientes
+- Credenciais de produção são gerenciadas exclusivamente pelo time de infraestrutura
