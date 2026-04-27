@@ -1,57 +1,47 @@
-# Copie este arquivo para application.properties e preencha com suas credenciais
-# NUNCA commite o application.properties com valores reais
 
-# Banco de dados (MySQL)
-spring.datasource.url=${DB_URL}
-spring.datasource.username=${DB_USERNAME}
-spring.datasource.password=${DB_PASSWORD}
+spring.datasource.url=jdbc:mysql://<HOST>:<PORT>/<DATABASE>?useSSL=true&serverTimezone=UTC&allowPublicKeyRetrieval=true
+spring.datasource.username=<DB_USERNAME>
+spring.datasource.password=<DB_PASSWORD>
 spring.jpa.database-platform=org.hibernate.dialect.MySQLDialect
 spring.jpa.hibernate.ddl-auto=update
 
-# E-mail (SMTP Office 365)
 spring.mail.host=smtp.office365.com
 spring.mail.port=587
-spring.mail.username=${MAIL_USERNAME}
-spring.mail.password=${MAIL_PASSWORD}
+spring.mail.username=<MAIL_USERNAME>
+spring.mail.password=<MAIL_PASSWORD>
 spring.mail.properties.mail.smtp.starttls.enable=true
 spring.mail.properties.mail.smtp.auth=true
 
 spring.jpa.show-sql=true
 spring.jpa.properties.hibernate.format_sql=true
 
-# JWT
-jwt.secret=${JWT_SECRET}
+jwt.secret=<JWT_SECRET>
 
-# LDAP / Active Directory
-spring.ldap.urls=${LDAP_URL}
-spring.ldap.base=${LDAP_BASE}
-spring.ldap.username=${LDAP_USERNAME}
-spring.ldap.password=${LDAP_PASSWORD}
+spring.ldap.urls=ldap://<LDAP_HOST>:<LDAP_PORT>
+spring.ldap.base=<LDAP_BASE>
+spring.ldap.username=<LDAP_USERNAME>
+spring.ldap.password=<LDAP_PASSWORD>
 spring.ldap.base-environment.java.naming.referral=follow
 
-logging.level.org.springframework.security=INFO
-logging.level.org.springframework.web=INFO
+logging.level.org.springframework.security=DEBUG
+logging.level.org.springframework.web=DEBUG
 
-# Zoom
-zoom.api.account-id=${ZOOM_ACCOUNT_ID}
-zoom.api.client-id=${ZOOM_CLIENT_ID}
-zoom.api.client-secret=${ZOOM_CLIENT_SECRET}
+zoom.api.account-id=<ZOOM_ACCOUNT_ID>
+zoom.api.client-id=<ZOOM_CLIENT_ID>
+zoom.api.client-secret=<ZOOM_CLIENT_SECRET>
 zoom.meeting.buffer-minutes=30
-zoom.webhook.verification-token=${ZOOM_WEBHOOK_TOKEN:}
+zoom.webhook.verification-token=
 
-# Microsoft Graph
-microsoft.graph.tenant-id=${MS_TENANT_ID}
-microsoft.graph.client-id=${MS_CLIENT_ID}
-microsoft.graph.client-secret=${MS_CLIENT_SECRET}
+microsoft.graph.tenant-id=<MS_TENANT_ID>
+microsoft.graph.client-id=<MS_CLIENT_ID>
+microsoft.graph.client-secret=<MS_CLIENT_SECRET>
 
-# Relatórios automáticos
 reports.auto.enabled=true
 reports.auto.cutoff-minutes=5
 reports.auto.batch-size=20
 reports.auto.fixed-delay-ms=300000
 reports.auto.initial-delay-ms=60000
 
-# URLs da aplicação
-app.base-url=${APP_BASE_URL}
-app.frontend-url=${APP_FRONTEND_URL}
-app.cors.allowed-origins=${APP_CORS_ORIGINS}
+app.base-url=#{BASE_URL}#
+app.frontend-url=#{FRONTEND_URL}#
+app.cors.allowed-origins=#{CORS_ALLOWED_ORIGINS}#
