@@ -20,13 +20,20 @@ pr:
       - "docs/**"
 
 variables:
-  NODE_VERSION: "20"
-  JAVA_VERSION: "21"
-  NX_BRANCH: $(Build.SourceBranchName)
-  NX_HEAD: $(Build.SourceVersion)
-  FRONTEND_HML_DIR: "/var/www/reserva360/hml"
-  FRONTEND_PROD_DIR: "/var/www/reserva360/prod"
-  BACKEND_DIR: "/opt/reserva360/backend"
+  - name: NODE_VERSION
+    value: "20"
+  - name: JAVA_VERSION
+    value: "21"
+  - name: NX_BRANCH
+    value: $(Build.SourceBranchName)
+  - name: NX_HEAD
+    value: $(Build.SourceVersion)
+  - name: FRONTEND_HML_DIR
+    value: "/var/www/reserva360/hml"
+  - name: FRONTEND_PROD_DIR
+    value: "/var/www/reserva360/prod"
+  - name: BACKEND_DIR
+    value: "/opt/reserva360/backend"
 
 # ─────────────────────────────────────────────────────────────
 # STAGE 1 – Validação (CI)
@@ -64,7 +71,7 @@ stages:
             workingDirectory: $(Build.SourcesDirectory)
 
       - job: Backend_Validacao
-        displayName: "Backend – Build de Validação"
+        displayName: "Backend – Testes Unitários"
         pool:
           name: self-hosted-hml
         steps:
@@ -90,11 +97,14 @@ stages:
               failTaskOnFailedTests: true
 
   # ─────────────────────────────────────────────────────────────
-  # STAGE 2 – Build HML
-  # Roda em push de develop e main
+  # STAGE 2 – Build & Preparação de Artefatos
+  # Compila frontend (HML e PROD) e backend em paralelo.
+  # Backend: renomeia application.properties.example → application.properties
+  # (template com #{TOKEN}#) e publica como artefato separado para
+  # substituição na etapa de deploy.
   # ─────────────────────────────────────────────────────────────
-  - stage: Build_HML
-    displayName: "Build – HML"
+  - stage: Build
+    displayName: "Build & Preparação"
     dependsOn: Validacao
     condition: |
       and(
@@ -103,7 +113,7 @@ stages:
       )
     jobs:
       - job: Build_Frontend_HML
-        displayName: "Build Frontend (modo hml)"
+        displayName: "Build Frontend (hml)"
         pool:
           name: self-hosted-hml
         steps:
@@ -128,6 +138,33 @@ stages:
               artifact: "frontend-hml"
               publishLocation: "pipeline"
 
+      - job: Build_Frontend_PROD
+        displayName: "Build Frontend (production)"
+        condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
+        pool:
+          name: self-hosted-hml
+        steps:
+          - checkout: self
+
+          - script: npm install
+            displayName: "Instalar dependências (root)"
+            workingDirectory: $(Build.SourcesDirectory)
+
+          - script: cd apps/reserva-frontend && npm install
+            displayName: "Instalar dependências (frontend)"
+            workingDirectory: $(Build.SourcesDirectory)
+
+          - script: npx nx run reserva-frontend:build:production
+            displayName: "Build Angular (production)"
+            workingDirectory: $(Build.SourcesDirectory)
+
+          - task: PublishPipelineArtifact@1
+            displayName: "Publicar artefato frontend-prod"
+            inputs:
+              targetPath: "$(Build.SourcesDirectory)/apps/reserva-frontend/dist"
+              artifact: "frontend-prod"
+              publishLocation: "pipeline"
+
       - job: Build_Backend
         displayName: "Build Backend (JAR)"
         pool:
@@ -137,6 +174,12 @@ stages:
 
           - script: npm install
             displayName: "Instalar dependências (root)"
+            workingDirectory: $(Build.SourcesDirectory)
+
+          - script: |
+              cp apps/reserva-backend/src/main/resources/application.properties.example \
+                 apps/reserva-backend/src/main/resources/application.properties
+            displayName: "Preparar application.properties (template)"
             workingDirectory: $(Build.SourcesDirectory)
 
           - script: |
@@ -152,22 +195,35 @@ stages:
               Contents: "*.jar"
               TargetFolder: "$(Build.ArtifactStagingDirectory)/backend"
 
+          - task: CopyFiles@2
+            displayName: "Copiar template de config para staging"
+            inputs:
+              SourceFolder: "$(Build.SourcesDirectory)/apps/reserva-backend/src/main/resources"
+              Contents: "application.properties"
+              TargetFolder: "$(Build.ArtifactStagingDirectory)/backend-config"
+
           - task: PublishPipelineArtifact@1
-            displayName: "Publicar artefato backend"
+            displayName: "Publicar artefato backend-jar"
             inputs:
               targetPath: "$(Build.ArtifactStagingDirectory)/backend"
               artifact: "backend-jar"
               publishLocation: "pipeline"
 
+          - task: PublishPipelineArtifact@1
+            displayName: "Publicar artefato backend-config (template)"
+            inputs:
+              targetPath: "$(Build.ArtifactStagingDirectory)/backend-config"
+              artifact: "backend-config"
+              publishLocation: "pipeline"
+
   # ─────────────────────────────────────────────────────────────
-  # STAGE 3 – Deploy HML
-  # Roda em push de develop e main
-  # Requer aprovação manual via environment 'hml' no Azure DevOps
-  # Executa no servidor HML (self-hosted-hml)
+  # STAGE 3 – Deploy Frontend
+  # HML: develop e main | PROD: somente main
+  # Requer aprovação manual via environments 'hml' e 'production'
   # ─────────────────────────────────────────────────────────────
-  - stage: Deploy_HML
-    displayName: "Deploy – HML"
-    dependsOn: Build_HML
+  - stage: Deploy_Frontend
+    displayName: "Deploy – Frontend"
+    dependsOn: Build
     condition: |
       and(
         succeeded(),
@@ -195,84 +251,9 @@ stages:
                     echo "Frontend HML deployado em $(FRONTEND_HML_DIR)"
                   displayName: "Copiar arquivos para Nginx (hml)"
 
-      - deployment: Deploy_Backend_HML
-        displayName: "Deploy Backend HML"
-        environment: "hml"
-        pool:
-          name: self-hosted-hml
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - download: current
-                  artifact: backend-jar
-                  displayName: "Baixar artefato backend"
-
-                - script: |
-                    sudo mkdir -p $(BACKEND_DIR)
-                    sudo cp $(Pipeline.Workspace)/backend-jar/*.jar $(BACKEND_DIR)/reserva-backend.jar
-                    sudo systemctl restart reserva-backend
-                    echo "Aguardando backend iniciar..."
-                    sleep 10
-                    sudo systemctl status reserva-backend --no-pager
-                  displayName: "Deploy JAR e reiniciar serviço"
-
-  # ─────────────────────────────────────────────────────────────
-  # STAGE 4 – Build PROD
-  # Roda apenas em push de main
-  # ─────────────────────────────────────────────────────────────
-  - stage: Build_PROD
-    displayName: "Build – Produção"
-    dependsOn: Deploy_HML
-    condition: |
-      and(
-        succeeded(),
-        eq(variables['Build.SourceBranch'], 'refs/heads/main')
-      )
-    jobs:
-      - job: Build_Frontend_PROD
-        displayName: "Build Frontend (modo production)"
-        pool:
-          name: self-hosted-hml
-        steps:
-          - checkout: self
-
-          - script: npm install
-            displayName: "Instalar dependências (root)"
-            workingDirectory: $(Build.SourcesDirectory)
-
-          - script: cd apps/reserva-frontend && npm install
-            displayName: "Instalar dependências (frontend)"
-            workingDirectory: $(Build.SourcesDirectory)
-
-          - script: npx nx run reserva-frontend:build:production
-            displayName: "Build Angular (production)"
-            workingDirectory: $(Build.SourcesDirectory)
-
-          - task: PublishPipelineArtifact@1
-            displayName: "Publicar artefato frontend-prod"
-            inputs:
-              targetPath: "$(Build.SourcesDirectory)/apps/reserva-frontend/dist"
-              artifact: "frontend-prod"
-              publishLocation: "pipeline"
-
-  # ─────────────────────────────────────────────────────────────
-  # STAGE 5 – Deploy PROD
-  # Roda apenas em push de main
-  # Requer aprovação manual via environment 'production' no Azure DevOps
-  # Executa no servidor PROD (self-hosted-prod)
-  # ─────────────────────────────────────────────────────────────
-  - stage: Deploy_PROD
-    displayName: "Deploy – Produção"
-    dependsOn: Build_PROD
-    condition: |
-      and(
-        succeeded(),
-        eq(variables['Build.SourceBranch'], 'refs/heads/main')
-      )
-    jobs:
       - deployment: Deploy_Frontend_PROD
         displayName: "Deploy Frontend Produção"
+        condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
         environment: "production"
         pool:
           name: self-hosted-prod
@@ -292,6 +273,73 @@ stages:
                     echo "Frontend PROD deployado em $(FRONTEND_PROD_DIR)"
                   displayName: "Copiar arquivos para Nginx (prod)"
 
+  # ─────────────────────────────────────────────────────────────
+  # STAGE 4 – Deploy Backend HML
+  # Replace Tokens substitui #{TOKEN}# usando o library group reserva360-hml.
+  # O application.properties resolvido é colocado em config/ ao lado do JAR;
+  # o Spring Boot o carrega com prioridade sobre o properties interno do JAR.
+  # ─────────────────────────────────────────────────────────────
+  - stage: Deploy_Backend_HML
+    displayName: "Deploy – Backend HML"
+    dependsOn: Deploy_Frontend
+    condition: |
+      and(
+        succeeded(),
+        in(variables['Build.SourceBranch'], 'refs/heads/main', 'refs/heads/develop')
+      )
+    variables:
+      - group: reserva360-hml
+    jobs:
+      - deployment: Deploy_Backend_HML
+        displayName: "Deploy Backend HML"
+        environment: "hml"
+        pool:
+          name: self-hosted-hml
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: backend-jar
+                  displayName: "Baixar artefato backend-jar"
+
+                - download: current
+                  artifact: backend-config
+                  displayName: "Baixar template de configuração"
+
+                - task: replacetokens@6
+                  displayName: "Substituir variáveis no application.properties (hml)"
+                  inputs:
+                    targetFiles: "$(Pipeline.Workspace)/backend-config/application.properties"
+                    encoding: "auto"
+                    tokenPattern: "default"
+
+                - script: |
+                    sudo mkdir -p $(BACKEND_DIR)/config
+                    sudo cp $(Pipeline.Workspace)/backend-jar/*.jar $(BACKEND_DIR)/reserva-backend.jar
+                    sudo cp $(Pipeline.Workspace)/backend-config/application.properties $(BACKEND_DIR)/config/application.properties
+                    sudo systemctl restart reserva-backend
+                    echo "Aguardando backend iniciar..."
+                    sleep 10
+                    sudo systemctl status reserva-backend --no-pager
+                  displayName: "Deploy JAR + config e reiniciar serviço"
+
+  # ─────────────────────────────────────────────────────────────
+  # STAGE 5 – Deploy Backend PROD
+  # Mesmo fluxo do HML, mas usando o library group reserva360-prd.
+  # Roda somente em main e requer aprovação via environment 'production'.
+  # ─────────────────────────────────────────────────────────────
+  - stage: Deploy_Backend_PROD
+    displayName: "Deploy – Backend Produção"
+    dependsOn: Deploy_Backend_HML
+    condition: |
+      and(
+        succeeded(),
+        eq(variables['Build.SourceBranch'], 'refs/heads/main')
+      )
+    variables:
+      - group: reserva360-prd
+    jobs:
       - deployment: Deploy_Backend_PROD
         displayName: "Deploy Backend Produção"
         environment: "production"
@@ -303,13 +351,25 @@ stages:
               steps:
                 - download: current
                   artifact: backend-jar
-                  displayName: "Baixar artefato backend"
+                  displayName: "Baixar artefato backend-jar"
+
+                - download: current
+                  artifact: backend-config
+                  displayName: "Baixar template de configuração"
+
+                - task: replacetokens@6
+                  displayName: "Substituir variáveis no application.properties (prod)"
+                  inputs:
+                    targetFiles: "$(Pipeline.Workspace)/backend-config/application.properties"
+                    encoding: "auto"
+                    tokenPattern: "default"
 
                 - script: |
-                    sudo mkdir -p $(BACKEND_DIR)
+                    sudo mkdir -p $(BACKEND_DIR)/config
                     sudo cp $(Pipeline.Workspace)/backend-jar/*.jar $(BACKEND_DIR)/reserva-backend.jar
+                    sudo cp $(Pipeline.Workspace)/backend-config/application.properties $(BACKEND_DIR)/config/application.properties
                     sudo systemctl restart reserva-backend
                     echo "Aguardando backend iniciar..."
                     sleep 10
                     sudo systemctl status reserva-backend --no-pager
-                  displayName: "Deploy JAR e reiniciar serviço"
+                  displayName: "Deploy JAR + config e reiniciar serviço"
