@@ -2,6 +2,7 @@ trigger:
   branches:
     include:
       - main
+      - develop
   paths:
     exclude:
       - "*.md"
@@ -12,6 +13,7 @@ pr:
   branches:
     include:
       - main
+      - develop
   paths:
     exclude:
       - "*.md"
@@ -28,6 +30,7 @@ variables:
 
 # ─────────────────────────────────────────────────────────────
 # STAGE 1 – Validação (CI)
+# Roda em push e PRs de develop e main
 # ─────────────────────────────────────────────────────────────
 stages:
   - stage: Validacao
@@ -36,7 +39,7 @@ stages:
       - job: Frontend_Validacao
         displayName: "Frontend – Lint & Typecheck"
         pool:
-          name: self-hosted-local
+          name: self-hosted-hml
         steps:
           - checkout: self
             fetchDepth: 0
@@ -63,7 +66,7 @@ stages:
       - job: Backend_Validacao
         displayName: "Backend – Build de Validação"
         pool:
-          name: self-hosted-local
+          name: self-hosted-hml
         steps:
           - checkout: self
             fetchDepth: 0
@@ -88,16 +91,21 @@ stages:
 
   # ─────────────────────────────────────────────────────────────
   # STAGE 2 – Build HML
+  # Roda em push de develop e main
   # ─────────────────────────────────────────────────────────────
   - stage: Build_HML
     displayName: "Build – HML"
     dependsOn: Validacao
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    condition: |
+      and(
+        succeeded(),
+        in(variables['Build.SourceBranch'], 'refs/heads/main', 'refs/heads/develop')
+      )
     jobs:
       - job: Build_Frontend_HML
         displayName: "Build Frontend (modo hml)"
         pool:
-          name: self-hosted-local
+          name: self-hosted-hml
         steps:
           - checkout: self
 
@@ -123,7 +131,7 @@ stages:
       - job: Build_Backend
         displayName: "Build Backend (JAR)"
         pool:
-          name: self-hosted-local
+          name: self-hosted-hml
         steps:
           - checkout: self
 
@@ -153,18 +161,24 @@ stages:
 
   # ─────────────────────────────────────────────────────────────
   # STAGE 3 – Deploy HML
+  # Roda em push de develop e main
   # Requer aprovação manual via environment 'hml' no Azure DevOps
+  # Executa no servidor HML (self-hosted-hml)
   # ─────────────────────────────────────────────────────────────
   - stage: Deploy_HML
     displayName: "Deploy – HML"
     dependsOn: Build_HML
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    condition: |
+      and(
+        succeeded(),
+        in(variables['Build.SourceBranch'], 'refs/heads/main', 'refs/heads/develop')
+      )
     jobs:
       - deployment: Deploy_Frontend_HML
         displayName: "Deploy Frontend HML"
         environment: "hml"
         pool:
-          name: self-hosted-local
+          name: self-hosted-hml
         strategy:
           runOnce:
             deploy:
@@ -185,7 +199,7 @@ stages:
         displayName: "Deploy Backend HML"
         environment: "hml"
         pool:
-          name: self-hosted-local
+          name: self-hosted-hml
         strategy:
           runOnce:
             deploy:
@@ -205,16 +219,21 @@ stages:
 
   # ─────────────────────────────────────────────────────────────
   # STAGE 4 – Build PROD
+  # Roda apenas em push de main
   # ─────────────────────────────────────────────────────────────
   - stage: Build_PROD
     displayName: "Build – Produção"
     dependsOn: Deploy_HML
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    condition: |
+      and(
+        succeeded(),
+        eq(variables['Build.SourceBranch'], 'refs/heads/main')
+      )
     jobs:
       - job: Build_Frontend_PROD
         displayName: "Build Frontend (modo production)"
         pool:
-          name: self-hosted-local
+          name: self-hosted-hml
         steps:
           - checkout: self
 
@@ -239,18 +258,24 @@ stages:
 
   # ─────────────────────────────────────────────────────────────
   # STAGE 5 – Deploy PROD
+  # Roda apenas em push de main
   # Requer aprovação manual via environment 'production' no Azure DevOps
+  # Executa no servidor PROD (self-hosted-prod)
   # ─────────────────────────────────────────────────────────────
   - stage: Deploy_PROD
     displayName: "Deploy – Produção"
     dependsOn: Build_PROD
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    condition: |
+      and(
+        succeeded(),
+        eq(variables['Build.SourceBranch'], 'refs/heads/main')
+      )
     jobs:
       - deployment: Deploy_Frontend_PROD
         displayName: "Deploy Frontend Produção"
         environment: "production"
         pool:
-          name: self-hosted-local
+          name: self-hosted-prod
         strategy:
           runOnce:
             deploy:
@@ -271,7 +296,7 @@ stages:
         displayName: "Deploy Backend Produção"
         environment: "production"
         pool:
-          name: self-hosted-local
+          name: self-hosted-prod
         strategy:
           runOnce:
             deploy:
